@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎸 Guitar Advisor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,700;1,300&family=DM+Mono:wght@400;500&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Background blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <div class="container">
+
+    <!-- Header -->
+    <header>
+      <div class="logo">🎸</div>
+      <h1>Guitar <em>Advisor</em></h1>
+      <p class="tagline">Drop a song. Get your practice plan.</p>
+    </header>
+
+    <!-- Input Card -->
+    <div class="card input-card">
+      <div class="tabs">
+        <button class="tab active" data-tab="file">📁 Upload File</button>
+        <button class="tab" data-tab="youtube">▶️ YouTube Link</button>
+      </div>
+
+      <!-- File Upload -->
+      <div class="tab-panel active" id="tab-file">
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-icon">🎵</div>
+          <p class="drop-text">Drag & drop your audio here</p>
+          <p class="drop-sub">MP3, WAV, OGG, FLAC, M4A supported</p>
+          <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.flac,.m4a" hidden>
+          <button class="btn-outline" onclick="document.getElementById('fileInput').click()">Browse files</button>
+        </div>
+        <div class="selected-file" id="selectedFile" style="display:none"></div>
+        <button class="btn-primary" id="analyzeFileBtn" style="display:none" onclick="analyzeFile()">
+          ✨ Analyze
+        </button>
+      </div>
+
+      <!-- YouTube -->
+      <div class="tab-panel" id="tab-youtube">
+        <div class="yt-input-wrap">
+          <span class="yt-icon">▶️</span>
+          <input type="text" id="ytUrl" placeholder="Paste YouTube URL here..." class="yt-input">
+        </div>
+        <button class="btn-primary" onclick="analyzeYoutube()">✨ Analyze</button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-card" id="loadingCard" style="display:none">
+      <div class="vinyl">
+        <div class="vinyl-inner"></div>
+      </div>
+      <p class="loading-text" id="loadingText">Analyzing your track...</p>
+      <div class="loading-steps" id="loadingSteps">
+        <span class="step" id="step1">🎵 Extracting features</span>
+        <span class="step" id="step2">🥁 Detecting BPM</span>
+        <span class="step" id="step3">🧩 Segmenting song</span>
+        <span class="step" id="step4">🎼 Predicting chords</span>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-card" id="errorCard" style="display:none">
+      <span class="error-icon">😬</span>
+      <p id="errorText">Something went wrong.</p>
+      <button class="btn-outline" onclick="resetUI()">Try again</button>
+    </div>
+
+    <!-- Results -->
+    <div id="results" style="display:none">
+
+      <!-- Guitar Advice Hero -->
+      <div class="card advice-hero">
+        <div class="advice-badge">🎸 Your Guitar Plan</div>
+        <div class="advice-grid">
+          <div class="advice-item">
+            <span class="advice-label">Key</span>
+            <span class="advice-value" id="advKey">—</span>
+          </div>
+          <div class="advice-item">
+            <span class="advice-label">BPM</span>
+            <span class="advice-value" id="advBpm">—</span>
+          </div>
+          <div class="advice-item">
+            <span class="advice-label">Practice at</span>
+            <span class="advice-value" id="advPractice">—</span>
+          </div>
+          <div class="advice-item">
+            <span class="advice-label">Scale</span>
+            <span class="advice-value small" id="advScale">—</span>
+          </div>
+        </div>
+        <div class="advice-row">
+          <div class="pill" id="advStrum">—</div>
+        </div>
+        <div class="chord-chips" id="advChords"></div>
+        <div class="capo-note" id="advCapo"></div>
+      </div>
+
+      <!-- Waveform -->
+      <div class="card chart-card">
+        <h3>🌊 Waveform</h3>
+        <canvas id="waveformChart"></canvas>
+      </div>
+
+      <!-- BPM + Key row -->
+      <div class="card-row">
+        <div class="card chart-card half">
+          <h3>🥁 BPM Distribution</h3>
+          <p class="chart-sub">Monte Carlo uncertainty estimate</p>
+          <canvas id="bpmChart"></canvas>
+          <div class="metric-row">
+            <div class="metric"><span class="metric-val" id="bpmMean">—</span><span class="metric-lab">Mean BPM</span></div>
+            <div class="metric"><span class="metric-val" id="bpmCI">—</span><span class="metric-lab">95% CI</span></div>
+            <div class="metric"><span class="metric-val" id="bpmStd">—</span><span class="metric-lab">Std Dev</span></div>
+          </div>
+        </div>
+        <div class="card chart-card half">
+          <h3>🎵 Key Detection</h3>
+          <p class="chart-sub">Krumhansl-Schmuckler profiles</p>
+          <canvas id="chromaChart"></canvas>
+          <div class="metric-row">
+            <div class="metric"><span class="metric-val" id="keyNote">—</span><span class="metric-lab">Key</span></div>
+            <div class="metric"><span class="metric-val" id="keyConf">—</span><span class="metric-lab">Confidence</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segment Timeline -->
+      <div class="card chart-card">
+        <h3>🧩 Song Segments <span class="badge" id="segBadge"></span></h3>
+        <p class="chart-sub">GMM + EM Algorithm — Module 3</p>
+        <div class="segment-timeline" id="segmentTimeline"></div>
+        <div class="segment-legend" id="segmentLegend"></div>
+        <div class="metric-row">
+          <div class="metric"><span class="metric-val" id="segSil">—</span><span class="metric-lab">Silhouette Score</span></div>
+          <div class="metric"><span class="metric-val" id="segK">—</span><span class="metric-lab">Sections Found</span></div>
+        </div>
+      </div>
+
+      <!-- Chord Prediction -->
+      <div class="card-row">
+        <div class="card chart-card half">
+          <h3>🎼 Top Chords</h3>
+          <p class="chart-sub">HMM + Viterbi Decoding — Module 4</p>
+          <canvas id="chordChart"></canvas>
+        </div>
+        <div class="card chart-card half">
+          <h3>📊 Evaluation</h3>
+          <p class="chart-sub">Model quality metrics</p>
+          <canvas id="evalChart"></canvas>
+          <div class="metric-row">
+            <div class="metric"><span class="metric-val" id="evalStability">—</span><span class="metric-lab">Chord Stability</span></div>
+            <div class="metric"><span class="metric-val" id="evalLL">—</span><span class="metric-lab">Log-Likelihood</span></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-outline reset-btn" onclick="resetUI()">🔄 Analyze another song</button>
+
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
