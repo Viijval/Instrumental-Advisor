@@ -59,11 +59,7 @@ async def analyze_youtube(url: str = Form(...)):
             "format": "bestaudio/best",
             "outtmpl": out_path,
             "ffmpeg_location": "/usr/bin",
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }],
+            "postprocessors": [],
             "quiet": True,
         }
         try:
