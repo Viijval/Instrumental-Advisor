@@ -21,15 +21,14 @@ MINOR_TEMPLATE = np.array([1,0,0,1,0,0,0,1,0,0,0,0], dtype=float)
 
 def detect_bpm(y, sr, hop_length):
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
-    tempo = float(tempo)
+    tempo = float(np.squeeze(tempo))
 
-    # Monte Carlo uncertainty
     N, SEG = 150, 10 * sr
     bpm_samples = []
     for _ in range(N):
         start = np.random.randint(0, max(1, len(y) - SEG))
         t, _ = librosa.beat.beat_track(y=y[start:start + SEG], sr=sr)
-        bpm_samples.append(float(t))
+        bpm_samples.append(float(np.squeeze(t)))
 
     bpm_samples = np.array(bpm_samples)
     return {
@@ -38,7 +37,7 @@ def detect_bpm(y, sr, hop_length):
         "bpm_ci_low": round(float(np.percentile(bpm_samples, 2.5)), 1),
         "bpm_ci_high": round(float(np.percentile(bpm_samples, 97.5)), 1),
         "bpm_histogram": bpm_samples.tolist(),
-        "practice_bpm": int(np.mean(bpm_samples) * 0.8),
+        "practice_bpm": int(float(np.mean(bpm_samples)) * 0.8),
     }
 
 
@@ -88,43 +87,54 @@ def predict_chords(chroma_T):
     log_prob, chord_seq = model.decode(chroma_T, algorithm='viterbi')
     chord_names_seq = [CHORD_NAMES[i] for i in chord_seq]
 
-    # Chord counts
     counts = {}
     for c in chord_names_seq:
         counts[c] = counts.get(c, 0) + 1
     top_chords = sorted(counts.items(), key=lambda x: -x[1])[:6]
 
-    # Stability
     transitions = sum(1 for i in range(1, len(chord_seq)) if chord_seq[i] != chord_seq[i-1])
     stability   = round(1 - transitions / len(chord_seq), 3)
 
-    # Transition matrix
-    trans = model.transmat_.tolist()
-
     return {
         "top_chords": [{"chord": c, "count": n} for c, n in top_chords],
-        "chord_timeline": chord_names_seq[::4],  # downsample for transfer
+        "chord_timeline": chord_names_seq[::4],
         "stability": stability,
         "log_likelihood": round(float(log_prob), 2),
-        "transition_matrix": trans,
+        "transition_matrix": model.transmat_.tolist(),
     }
 
 
-def guitar_advice(bpm, key, mode, top_chords):
-    if bpm < 70:   strum = "Slow ballad strumming — D DU UDU pattern"
+def instrument_advice(bpm, key, mode, top_chords):
+    scale = f"{key} {'Major' if mode == 'Major' else 'Minor'} Pentatonic"
+    capo_map = {'C':0,'G':0,'D':0,'A':0,'E':0,'F':1,'A#':3,'G#':4,'D#':6,'C#':9,'B':2,'F#':2}
+    capo = capo_map.get(key, 0)
+    top3 = [c["chord"] for c in top_chords[:3]]
+
+    if bpm < 70:    strum = "Slow ballad strumming — D DU UDU pattern"
     elif bpm < 100: strum = "Medium groove — D D DU pattern"
     elif bpm < 130: strum = "Upbeat strumming — DDUUDU pattern"
     else:           strum = "Fast — try palm muting on downstrokes"
 
-    scale = f"{key} {'Major' if mode == 'Major' else 'Minor'} Pentatonic"
-    capo_map = {'C':0,'G':0,'D':0,'A':0,'E':0,'F':1,'A#':3,'G#':4,'D#':6,'C#':9,'B':2,'F#':2}
-    capo = capo_map.get(key, 0)
+    if bpm < 70:    piano_style = "Slow arpeggios — broken chord voicings"
+    elif bpm < 100: piano_style = "Medium blocked chords with melody in right hand"
+    elif bpm < 130: piano_style = "Rhythmic comping — offbeat chord stabs"
+    else:           piano_style = "Fast — try octave bass notes in left hand"
+
+    if bpm < 70:    drum_pattern = "Half-time feel — kick on 1, snare on 3"
+    elif bpm < 100: drum_pattern = "Standard rock — kick 1&3, snare 2&4"
+    elif bpm < 130: drum_pattern = "Driving 8th note hi-hat pattern"
+    else:           drum_pattern = "Fast 16th note hi-hats — punk/metal feel"
+
+    if bpm < 70:    bass_style = "Root note sustain with slow walking lines"
+    elif bpm < 100: bass_style = "Root-fifth patterns following chord changes"
+    elif bpm < 130: bass_style = "Rhythmic 8th note groove locking with kick"
+    else:           bass_style = "16th note driving bassline — stay tight with drums"
 
     return {
-        "strumming": strum,
-        "scale": scale,
-        "capo": capo,
-        "top3_chords": [c["chord"] for c in top_chords[:3]],
+        "guitar": {"tip": strum, "scale": scale, "capo": capo, "top3_chords": top3},
+        "piano":  {"tip": piano_style, "scale": scale, "top3_chords": top3},
+        "drums":  {"tip": drum_pattern, "top3_chords": top3},
+        "bass":   {"tip": bass_style, "scale": scale, "top3_chords": top3},
     }
 
 
@@ -133,7 +143,6 @@ def analyze_audio(path: str) -> dict:
     y, sr = librosa.load(path, mono=True, duration=90)
     duration = float(librosa.get_duration(y=y, sr=sr))
 
-    # Features
     mfcc        = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13, hop_length=HOP)
     mfcc_delta  = librosa.feature.delta(mfcc)
     chroma      = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=HOP)
@@ -143,13 +152,9 @@ def analyze_audio(path: str) -> dict:
         np.vstack([mfcc, mfcc_delta, chroma]).T
     )
 
-    # Waveform (downsampled for frontend)
     waveform_ds = y[::512].tolist()
+    chroma_ds   = chroma[:, ::4].tolist()
 
-    # Chroma (downsampled)
-    chroma_ds = chroma[:, ::4].tolist()
-
-    # BIC for optimal k
     bic_scores = []
     K_RANGE = range(2, 7)
     for k in K_RANGE:
@@ -158,14 +163,12 @@ def analyze_audio(path: str) -> dict:
         bic_scores.append(g.bic(features_scaled))
     optimal_k = list(K_RANGE)[int(np.argmin(bic_scores))]
 
-    # Run analyses
     bpm_data        = detect_bpm(y, sr, HOP)
     key, mode, corr = detect_key(chroma)
     named_labels, seg_labels, sil, seg_dist = segment_song(features_scaled, rms, optimal_k)
     chord_data      = predict_chords(chroma.T)
-    advice          = guitar_advice(bpm_data["bpm"], key, mode, chord_data["top_chords"])
+    advice          = instrument_advice(bpm_data["bpm"], key, mode, chord_data["top_chords"])
 
-    # Frame times (downsampled)
     frame_times = librosa.frames_to_time(
         np.arange(0, len(named_labels), 4), sr=sr, hop_length=HOP
     ).tolist()
