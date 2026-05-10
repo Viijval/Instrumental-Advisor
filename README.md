@@ -1,4 +1,4 @@
-# 🎸 Guitar Advisor
+#  Guitar Advisor
 
 A music analysis web app that takes any audio file or YouTube link and gives you a personalised guitar practice plan.
 
@@ -8,7 +8,7 @@ Built as an Advanced Machine Learning lab project — uses **GMM (Module 3)**, *
 
 ---
 
-## ✨ Features
+##  Features
 
 | Feature | ML Method |
 |---|---|
@@ -33,8 +33,7 @@ Built as an Advanced Machine Learning lab project — uses **GMM (Module 3)**, *
 - Practice tempo (80% of detected BPM)
 
 ---
-
-## 🚀 Run Locally
+##  Run Locally
 
 ```bash
 # Clone
@@ -52,7 +51,7 @@ Open http://localhost:8000
 
 ---
 
-## 🚂 Deploy to Railway
+##  Deploy to Railway
 
 1. Push this repo to GitHub
 2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
@@ -82,7 +81,7 @@ guitar-advisor/
 
 ---
 
-## 🧠 ML Details
+##  ML Details
 
 ### BPM — Monte Carlo (Module 6)
 Detects tempo using `librosa.beat.beat_track`, then runs 150 bootstrap samples over random 10-second windows to estimate a confidence interval around the BPM.
@@ -95,7 +94,7 @@ Fits a `GaussianHMM` on chroma features with 14 hidden states (C, Cm, D, Dm ... 
 
 ---
 
-## 📚 Dependencies
+##  Dependencies
 
 - `librosa` — audio feature extraction
 - `hmmlearn` — Hidden Markov Models
@@ -106,6 +105,6 @@ Fits a `GaussianHMM` on chroma features with 14 hidden states (C, Cm, D, Dm ... 
 
 ---
 
-## 📄 License
+##  License
 
 MIT
